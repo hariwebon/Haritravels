@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Picture Password</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .auth-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        #passwordContainer {
+            position: relative;
+            margin: 2rem 0;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #passwordImage {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+        }
+
+        .click-dot {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #dc3545;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: dotAppear 0.3s ease-out;
+        }
+
+        @keyframes dotAppear {
+            from { transform: translate(-50%, -50%) scale(0); }
+            to { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .btn-action {
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            transition: transform 0.2s ease;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="auth-container">
+        <h1 class="text-center mb-4 fw-bold text-primary">Visual Password Authentication</h1>
+        
+        <form id="authForm">
+            <div class="mb-4">
+                <input type="text" 
+                       id="username" 
+                       class="form-control form-control-lg" 
+                       placeholder="Enter your username"
+                       required>
+            </div>
+
+            <div id="passwordContainer">
+                <div id="gridOverlay" class="grid-overlay"></div>
+                <img id="passwordImage" src="password_image.jpg" alt="Secure visual password image">
+            </div>
+
+            <div class="d-grid gap-3 d-md-flex justify-content-md-center mt-4">
+                <button type="button" 
+                        id="registerBtn"
+                        class="btn btn-primary btn-action">
+                    Register
+                </button>
+                <button type="button" 
+                        id="loginBtn"
+                        class="btn btn-success btn-action">
+                    Login
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal for Messages -->
+    <div class="modal fade" id="messageModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modalMessage"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Existing modal function
+        const showMessage = (title, message) => {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            new bootstrap.Modal(document.getElementById('messageModal')).show();
+        };
+    
+        // Image click handling
+        const img = document.getElementById('passwordImage');
+        const gridSize = 10;
+        let points = [];
+        let clickDots = [];
+    
+        img.addEventListener('click', function(event) {
+            if (points.length >= 3) {
+                showMessage('Selection Complete', 'You can only select 3 points.');
+                return;
+            }
+    
+            const rect = img.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const column = Math.floor(x / (rect.width / gridSize));
+            const row = Math.floor(y / (rect.height / gridSize));
+            
+            // Add visual dot
+            const dot = document.createElement('div');
+            dot.className = 'click-dot';
+            dot.style.left = `${x}px`;
+            dot.style.top = `${y}px`;
+            document.getElementById('passwordContainer').appendChild(dot);
+            clickDots.push(dot);
+    
+            points.push([row, column]);
+        });
+    
+        // Registration handler
+        document.getElementById('registerBtn').addEventListener('click', async () => {
+            if (points.length !== 3) {
+                showMessage('Registration Error', 'Please select exactly 3 points.');
+                return;
+            }
+            
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                showMessage('Registration Error', 'Please enter a username.');
+                return;
+            }
+    
+            try {
+                const response = await fetch('register.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, sequence: points }),
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Success', 'Registration successful!');
+                    resetSelection();
+                } else {
+                    showMessage('Registration Failed', data.message);
+                }
+            } catch (error) {
+                showMessage('Error', 'Registration failed. Please try again.');
+            }
+        });
+    
+        // Login handler
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            if (points.length !== 3) {
+                showMessage('Login Error', 'Please select exactly 3 points.');
+                return;
+            }
+    
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                showMessage('Login Error', 'Please enter a username.');
+                return;
+            }
+    
+            try {
+                const response = await fetch('login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, sequence: points }),
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = 'home.php';
+                } else {
+                    showMessage('Login Failed', data.message || 'Invalid credentials');
+                    resetSelection();
+                }
+            } catch (error) {
+                showMessage('Error', 'Login failed. Please try again.');
+            }
+        });
+    
+        function resetSelection() {
+            points = [];
+            clickDots.forEach(dot => dot.remove());
+            clickDots = [];
+        }
+    </script>
+</body>
+</html>
